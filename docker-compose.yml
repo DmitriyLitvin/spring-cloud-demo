@@ -1,0 +1,221 @@
+version: "3.8"
+
+services:
+  ## MySQL Docker Compose Config
+  mysql-order:
+    container_name: mysql-order
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_DATABASE: order-service
+      MYSQL_ROOT_PASSWORD: password
+    volumes:
+      - ./mysql-order:/var/lib/mysql
+    ports:
+      - "5431:3306"  # <зовнішній порт>:<внутрішній порт>
+    networks:
+      - backend
+    healthcheck:
+      test: [ "CMD", "mysql", "-uroot", "-ppassword", "-e", "SELECT 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  mysql-inventory:
+    container_name: mysql-inventory
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_DATABASE: inventory-service
+      MYSQL_ROOT_PASSWORD: password
+    volumes:
+      - ./mysql-inventory:/var/lib/mysql
+    ports:
+      - "5432:3306"
+    networks:
+      - backend
+    healthcheck:
+      test: [ "CMD", "mysql", "-uroot", "-ppassword", "-e", "SELECT 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  ## Mongo Docker Compose Config
+  mongo:
+    container_name: mongodb
+    image: mongo:4.4.14-rc0-focal
+    restart: always
+    ports:
+      - "27018:27018"
+    volumes:
+      - ./mongo-data:/data/db
+    networks:
+      - backend
+
+
+  ## Keycloak Config with Mysql database
+  keycloak-mysql:
+    container_name: keycloak-mysql
+    image: mysql:5.7
+    volumes:
+      - ./mysql_keycloak_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: keycloak
+      MYSQL_USER: keycloak
+      MYSQL_PASSWORD: password
+    networks:
+      - backend
+    healthcheck:
+      test: [ "CMD", "mysql", "-ukeycloak", "-ppassword", "-e", "SELECT 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  keycloak:
+    container_name: keycloak
+    image: quay.io/keycloak/keycloak:18.0.0
+    command: [ "start-dev", "--import-realm" ]
+    environment:
+      DB_VENDOR: MYSQL
+      DB_ADDR: mysql
+      DB_DATABASE: keycloak
+      DB_USER: keycloak
+      DB_PASSWORD: password
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./realms/:/opt/keycloak/data/import/
+    depends_on:
+      - keycloak-mysql
+    networks:
+      - backend
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.0.1
+    container_name: zookeeper
+    ports:
+      - "22181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - backend
+
+  broker:
+    image: confluentinc/cp-kafka:7.0.1
+    container_name: broker
+    ports:
+      - "9093:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9093,PLAINTEXT_INTERNAL://broker:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    networks:
+      - backend
+
+
+  ## Eureka Server
+  discovery-server:
+    image: debby1/discovery-service:latest
+    container_name: discovery-server
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    networks:
+      - backend
+
+
+  api-gateway:
+    image: debby1/api-gateway:latest
+    container_name: api-gateway
+    ports:
+      - "8086:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY= TRACE
+    depends_on:
+      - discovery-server
+      - keycloak
+    networks:
+      - backend
+
+  ## Product-Service Docker Compose Config
+  product-service:
+    container_name: product-service
+    image: debby1/product-service:latest
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    depends_on:
+      - mongo
+      - discovery-server
+      - api-gateway
+    networks:
+      - backend
+
+  ## Order-Service Docker Compose Config
+  order-service:
+    container_name: order-service
+    image: debby1/order-service:latest
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-order:3306/order-service
+    depends_on:
+      mysql-order:
+        condition: service_healthy
+      broker:
+        condition: service_started
+      discovery-server:
+        condition: service_started
+      api-gateway:
+        condition: service_started
+    networks:
+      - backend
+
+  ## Inventory-Service Docker Compose Config
+  inventory-service:
+    container_name: inventory-service
+    image: debby1/inventory-service:latest
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-inventory:3306/inventory-service
+    depends_on:
+      mysql-inventory:
+        condition: service_healthy
+      discovery-server:
+        condition: service_started
+      api-gateway:
+        condition: service_started
+    networks:
+      - backend
+    volumes:
+      - ./mysql-inventory:/var/lib/mysql
+
+  ## Notification-Service Docker Compose Config
+  notification-service:
+    container_name: notification-service
+    image: debby1/notification-service:latest
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    depends_on:
+      - broker
+      - discovery-server
+      - api-gateway
+    networks:
+      - backend
+
+networks:
+  backend:
+    external: true
