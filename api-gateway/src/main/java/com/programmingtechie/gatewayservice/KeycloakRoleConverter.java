@@ -16,6 +16,7 @@ public class KeycloakRoleConverter implements Converter<Jwt, Collection<GrantedA
 
     @Override
     public Collection<GrantedAuthority> convert(@NonNull Jwt jwt) {
+        log.info(jwt.getClaims().toString());
         try {
             System.out.println(">>> Entered KeycloakRoleConverter");
             log.info(">>> Entered KeycloakRoleConverter");
