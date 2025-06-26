@@ -12,7 +12,7 @@ services:
     volumes:
       - ./mysql-order:/var/lib/mysql
     ports:
-      - "5431:3306"  # <зовнішній порт>:<внутрішній порт>
+      - "5431:3306"
     networks:
       - backend
     healthcheck:

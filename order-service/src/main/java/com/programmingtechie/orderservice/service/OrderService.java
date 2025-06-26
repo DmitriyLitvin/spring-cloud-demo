@@ -42,6 +42,9 @@ public class OrderService {
         order.setOrderLineItems(orderLineItems);
 
         List<String> skuCodes = order.getOrderLineItems().stream().map(OrderLineItems::getSkuCode).toList();
+        if (skuCodes.isEmpty()) {
+            throw new IllegalArgumentException("Sku codes are empty");
+        }
 
         InventoryResponse[] inventoryResponses = webClientBuilder.build().get()
                 .uri("http://inventory-service/api/inventory", uriBuilder -> uriBuilder.queryParam("skuCode", skuCodes).build())
@@ -49,8 +52,6 @@ public class OrderService {
                 .retrieve()
                 .bodyToMono(InventoryResponse[].class)
                 .block();
-
-
 
         if (inventoryResponses == null || inventoryResponses.length == 0) {
             throw new IllegalArgumentException("Product is not in stock, please try again later");
@@ -61,9 +62,9 @@ public class OrderService {
             orderRepository.save(order);
             kafkaTemplate.send("notificationTopic", new OrderPlacedEvent(order.getOrderNumber()));
             return "Order placed Successfully";
-        } else {
-            throw new IllegalArgumentException("Product is not in stock, please try again later");
         }
+
+        throw new IllegalArgumentException("Product is not in stock, please try again later");
     }
 
     private OrderLineItems mapToDto(OrderLineItemsDto orderLineItemsDto) {

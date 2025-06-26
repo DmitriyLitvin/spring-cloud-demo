@@ -32,9 +32,6 @@ public class SecurityConfig {
 
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http, ReactiveJwtAuthenticationConverterAdapter reactiveJwtConverter) {
-        System.out.println("------------------------------------------------------------------------------");
-        log.info("------------------------------------------------------------------------------");
-
         return http.csrf().disable()
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers("/api/order/**").hasRole("ADMIN")

@@ -23,7 +23,6 @@ public class OrderController {
     @TimeLimiter(name = "inventory")
     @Retry(name = "inventory")
     public CompletableFuture<String> placeOrder(@RequestBody OrderRequest orderRequest,  @RequestHeader("Authorization") String authorizationHeader) {
-
         return CompletableFuture.supplyAsync(() -> orderService.placeOrder(orderRequest, authorizationHeader));
     }
 
