@@ -1,7 +1,6 @@
 package com.programmingtechie.gatewayservice.config;
 
 import com.programmingtechie.gatewayservice.KeycloakRoleConverter;
-import com.programmingtechie.gatewayservice.ReactiveJwtConverter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

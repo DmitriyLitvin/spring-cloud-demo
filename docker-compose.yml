@@ -51,6 +51,9 @@ services:
       - "27018:27018"
     volumes:
       - ./mongo-data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: password
     networks:
       - backend
 
