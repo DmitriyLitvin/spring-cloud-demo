@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: product-service
+  template:
+    metadata:
+      labels:
+        app: product-service
+    spec:
+      containers:
+        - name: product-service
+          image: debby1/product-service:latest
+          imagePullPolicy: Always
+          env:
+            - name: MONGODB_URI
+              valueFrom:
+                configMapKeyRef:
+                  key: MONGODB_URI
+                  name: product-service-config
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              valueFrom:
+                configMapKeyRef:
+                  key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+                  name: common-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service
+spec:
+  selector:
+    app: product-service
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: product-service-config
+data:
+  MONGODB_URI: "mongodb://root:password@mongodb.default.svc.cluster.local:27017/product-service?authSource=admin"
